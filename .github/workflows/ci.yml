@@ -5,8 +5,7 @@ on:
   push:
     branches:
       - master
-    tags:
-      - v*
+      - main
 
 jobs:
   build:
@@ -18,44 +17,25 @@ jobs:
           - 2.5
           - 2.6
           - 2.7
+          - 3.0
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Setup Redis
-        uses: shogo82148/actions-setup-redis@v1
-        with:
-          redis-version: '5.x'
-
-      - name: Set up Ruby
-        uses: actions/setup-ruby@v1
+      - name: Setup ruby
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
 
-      - name: Setup bundler
-        run: |
-          gem install bundler --no-doc
-          bundle config path vendor/bundle
-
-      - name: Bundler cache
-        uses: actions/cache@v2
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-gems-
-
-      - name: Setup gems
-        run: bundle install --jobs 4
-
-      - name: Rubocop
+      - name: Lint
         run: bundle exec rubocop
 
-      - name: RSpec
-        run: bundle exec rspec
+      - name: Tests
+        run: bundle exec rake test
 
   publish:
-    if: contains(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     needs: build
     runs-on: ubuntu-latest
 
@@ -63,6 +43,8 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Release Gem
-        uses: CvX/publish-rubygems-action@master
+        uses: discourse/publish-rubygems-action@v2-beta
         env:
-          RUBYGEMS_API_KEY: ${{secrets.RUBYGEMS_API_KEY}}
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+          GIT_EMAIL: team@discourse.org
+          GIT_NAME: discoursebot
